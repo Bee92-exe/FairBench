@@ -2,22 +2,20 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../hooks/useNotifications';
-import { 
-  Calendar, 
-  Clock, 
-  PlusCircle, 
-  Bell, 
-  FlaskConical, 
-  LogOut, 
-  UserCheck, 
-  ShieldAlert,
+import {
+  Calendar,
+  Clock,
+  PlusCircle,
+  Bell,
+  FlaskConical,
+  LogOut,
   Menu,
   X
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export function Header() {
-  const { user, role, isAdmin, switchUser, logout } = useAuth();
+  const { user, role, logout } = useAuth();
   const { unreadCount } = useNotifications();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -88,36 +86,6 @@ export function Header() {
               )}
             </Link>
 
-            {/* Quick Demo Switcher */}
-            <div className="hidden sm:flex items-center bg-slate-100/80 p-1 rounded-xl border border-slate-200 text-xs">
-              <button
-                type="button"
-                onClick={() => switchUser('usr-sirat')}
-                className={clsx(
-                  'px-2.5 py-1 rounded-lg font-medium transition-all',
-                  user?.id === 'usr-sirat'
-                    ? 'bg-white text-indigo-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                )}
-                title="Switch to Sirat (Student)"
-              >
-                Sirat (Student)
-              </button>
-              <button
-                type="button"
-                onClick={() => switchUser('usr-haque')}
-                className={clsx(
-                  'px-2.5 py-1 rounded-lg font-medium transition-all',
-                  user?.id === 'usr-haque'
-                    ? 'bg-white text-purple-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                )}
-                title="Switch to Dr. Haque (Admin)"
-              >
-                Dr. Haque (Admin)
-              </button>
-            </div>
-
             {/* User Indicator */}
             <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
               <div className="w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center text-xs font-bold text-indigo-700">
@@ -128,6 +96,16 @@ export function Header() {
                 <div className="text-[10px] text-slate-500 capitalize">{role}</div>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={logout}
+              className="p-2.5 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+              aria-label="Sign out"
+              title="Sign out"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
 
             {/* Mobile Menu Toggle */}
             <button
@@ -163,25 +141,14 @@ export function Header() {
             );
           })}
 
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>Role Switcher:</span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => { switchUser('usr-sirat'); setMobileMenuOpen(false); }}
-                className="px-2 py-1 bg-slate-100 rounded text-slate-700"
-              >
-                Sirat
-              </button>
-              <button
-                type="button"
-                onClick={() => { switchUser('usr-haque'); setMobileMenuOpen(false); }}
-                className="px-2 py-1 bg-slate-100 rounded text-slate-700"
-              >
-                Dr. Haque
-              </button>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => { setMobileMenuOpen(false); logout(); }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-rose-600 hover:bg-rose-50"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sign out</span>
+          </button>
         </div>
       )}
     </header>

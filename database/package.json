@@ -1,0 +1,17 @@
+{
+  "name": "fairbench-database",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "FairBench migrations, seed and database checks (owner: Sabbir)",
+  "scripts": {
+    "migrate": "node migrate.js",
+    "seed": "node seed/seed.js",
+    "test": "node concurrency.test.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "dotenv": "^16.4.5",
+    "pg": "^8.12.0"
+  }
+}
