@@ -37,22 +37,22 @@ Tick a task only when its tests pass. Each person edits only their own section.
 - [ ] A-FE-8 Health, credits, usage (version 3)
 
 ## Sirat (frontend + small backend)
-- [ ] SI-FE-1 Project setup and layout
-- [ ] SI-FE-2 Login and session
-- [ ] SI-FE-3 Mock mode
-- [ ] SI-FE-4 Request form
-- [ ] SI-FE-5 My bookings
-- [ ] SI-FE-6 Lab calendar
-- [ ] SI-FE-7 Notifications UI
-- [ ] SI-FE-8 Time utils, states, accessibility
-- [ ] SI-FE-9 Score breakdown (version 2)
+- [x] SI-FE-1 Project setup and layout
+- [x] SI-FE-2 Login and session
+- [x] SI-FE-3 Mock mode
+- [x] SI-FE-4 Request form
+- [x] SI-FE-5 My bookings
+- [x] SI-FE-6 Lab calendar
+- [x] SI-FE-7 Notifications UI
+- [x] SI-FE-8 Time utils, states, accessibility
+- [x] SI-FE-9 Score breakdown (version 2)
 - [ ] SI-FE-10 Check-in, fault report, credits (version 3)
-- [ ] SI-BE-1 Settings routes
-- [ ] SI-BE-2 Notifications routes
-- [ ] SI-BE-3 Health route
+- [x] SI-BE-1 Settings routes
+- [x] SI-BE-2 Notifications routes
+- [x] SI-BE-3 Health route
 - [ ] SI-BE-4 Usage report route (version 3)
 
 ## Decisions
 | Date | Decision | By |
 |---|---|---|
-| | | |
+| 2026-11-23 | Built Vite+React 18 frontend with Tailwind CSS, custom lab design system, MSW/in-memory mock DB adhering strictly to API_SPEC. Implemented shared components (Button, Modal, Table, Badge, CalendarView, ReasonText, ScoreBreakdown), student pages (Login, MyBookings, RequestForm, LabCalendar, Notifications), and Sirat backend routes (settings, notifications, health). | Sirat |
