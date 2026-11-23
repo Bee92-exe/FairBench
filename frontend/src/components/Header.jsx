@@ -25,7 +25,8 @@ export function Header() {
   const navLinks = [
     { to: '/calendar', label: 'Lab Calendar', icon: Calendar },
     { to: '/my', label: 'My Bookings', icon: Clock },
-    { to: '/request/new', label: 'New Request', icon: PlusCircle }
+    { to: '/request/new', label: 'New Request', icon: PlusCircle },
+    ...(isAdmin ? [{ to: '/admin', label: 'Admin Portal', icon: ShieldAlert }] : [])
   ];
 
   const isActive = (path) => location.pathname === path;

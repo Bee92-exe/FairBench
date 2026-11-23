@@ -22,18 +22,18 @@ Tick a task only when its tests pass. Each person edits only their own section.
 - [ ] S-BE-11 Version 3 credits, check-in, adaptive buffer
 
 ## Aranno (backend API + admin frontend)
-- [ ] A-BE-1 Express skeleton
-- [ ] A-BE-2 Auth middleware
-- [ ] A-BE-3 Student and schedule routes
-- [ ] A-BE-4 Admin routes
-- [ ] A-BE-5 Supertest suite (AT-16)
-- [ ] A-FE-1 Admin layout and guard
-- [ ] A-FE-2 Override page with preview
-- [ ] A-FE-3 Machines and outage page
-- [ ] A-FE-4 Needs-attention page
-- [ ] A-FE-5 Dashboard and history
-- [ ] A-FE-6 Users page
-- [ ] A-FE-7 Settings page and scenarios (version 2)
+- [x] A-BE-1 Express skeleton
+- [x] A-BE-2 Auth middleware
+- [x] A-BE-3 Student and schedule routes
+- [x] A-BE-4 Admin routes
+- [x] A-BE-5 Supertest suite (AT-16)
+- [x] A-FE-1 Admin layout and guard
+- [x] A-FE-2 Override page with preview
+- [x] A-FE-3 Machines and outage page
+- [x] A-FE-4 Needs-attention page
+- [x] A-FE-5 Dashboard and history
+- [x] A-FE-6 Users page
+- [x] A-FE-7 Settings page and scenarios (version 2)
 - [ ] A-FE-8 Health, credits, usage (version 3)
 
 ## Sirat (frontend + small backend)
@@ -56,3 +56,4 @@ Tick a task only when its tests pass. Each person edits only their own section.
 | Date | Decision | By |
 |---|---|---|
 | 2026-11-23 | Built Vite+React 18 frontend with Tailwind CSS, custom lab design system, MSW/in-memory mock DB adhering strictly to API_SPEC. Implemented shared components (Button, Modal, Table, Badge, CalendarView, ReasonText, ScoreBreakdown), student pages (Login, MyBookings, RequestForm, LabCalendar, Notifications), and Sirat backend routes (settings, notifications, health). | Sirat |
+| 2026-11-23 | Built Express backend with Zod env validation, Supabase JWT auth middleware, student and schedule routes, admin routes (preview/apply, attention, audit, users, dashboard), Supertest test suite (13/13 passing, AT-16 verified), and full admin frontend (Dashboard, Override with What-If preview diff, Outages, Attention, Audit History, Users, Settings). | Aranno |
