@@ -1,0 +1,15 @@
+{
+  "git.autofetch": true,
+  "git.autofetchPeriod": 180,
+  "git.confirmSync": false,
+  "git.enableSmartCommit": false,
+  "git.postCommitCommand": "none",
+  "git.branchProtection": ["main"],
+  "git.branchProtectionPrompt": "alwaysCommitToNewBranch",
+  "git.showPushSuccessNotification": true,
+  "git.untrackedChanges": "separate",
+  "scm.defaultViewMode": "tree",
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true
+}
