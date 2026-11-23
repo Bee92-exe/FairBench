@@ -90,15 +90,21 @@ async function main() {
     assert.ok(fixedRejected, 'fixed request without reason must violate a check constraint');
     console.log('PASS FR-06: fixed request without a reason is rejected');
 
-    // NFR-09: the audit log is append-only.
-    const { rows: auditRows } = await setup.query(
-      "insert into audit_log (action, details) values ('test_entry', '{}'::jsonb) returning id"
-    );
+    // NFR-09: the audit log is append-only. Rolled back so the check leaves no row.
+    const auditClient = newClient();
+    await auditClient.connect();
     let auditBlocked = false;
     try {
-      await setup.query("update audit_log set action = 'tampered' where id = $1", [auditRows[0].id]);
+      await auditClient.query('begin');
+      const { rows: auditRows } = await auditClient.query(
+        "insert into audit_log (action, details) values ('test_entry', '{}'::jsonb) returning id"
+      );
+      await auditClient.query("update audit_log set action = 'tampered' where id = $1", [auditRows[0].id]);
     } catch (error) {
       auditBlocked = /append-only/.test(error.message);
+    } finally {
+      await auditClient.query('rollback').catch(() => {});
+      await auditClient.end();
     }
     assert.ok(auditBlocked, 'audit_log update must be blocked by the trigger');
     console.log('PASS NFR-09: audit_log cannot be updated');

@@ -113,6 +113,7 @@ export function schedule(input = {}) {
   const placements = [];
   const unplaced = [];
   const moves = [];
+  const movedBookingIds = new Set();
   let repairs = 0;
 
   for (const { request, scored } of ordered) {
@@ -140,7 +141,15 @@ export function schedule(input = {}) {
     let repair = null;
 
     if (!placement) {
-      repair = tryRepair({ request, machine, settings, busy: machineBusy, kept, now });
+      repair = tryRepair({
+        request,
+        machine,
+        settings,
+        busy: machineBusy,
+        kept,
+        now,
+        excludeBookingIds: movedBookingIds
+      });
       if (repair) {
         placement = repair.placement;
         repairs += 1;
@@ -189,6 +198,7 @@ export function schedule(input = {}) {
       surviving.sort((a, b) => a.start - b.start || a.end - b.end);
       busy.set(machine.id, surviving);
 
+      movedBookingIds.add(repair.moved.booking.id);
       moves.push({
         bookingId: repair.moved.booking.id,
         requestId: movedRequest.id,
