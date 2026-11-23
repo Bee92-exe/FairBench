@@ -21,9 +21,10 @@ function movable(k) {
   );
 }
 
-export function tryRepair({ request, machine, settings, busy, kept = [], now }) {
+export function tryRepair({ request, machine, settings, busy, kept = [], now, excludeBookingIds = new Set() }) {
   const candidates = kept
     .filter(movable)
+    .filter((k) => !excludeBookingIds.has(k.booking.id))
     .filter((k) => (k.booking.machineId ?? k.booking.machine_id) === request.machineId)
     .map((k) => ({ k, slack: slackMinutes(k.request, settings, now) }))
     .sort((a, b) => {

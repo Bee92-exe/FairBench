@@ -188,15 +188,20 @@ async function main() {
   console.log('Request status after seeding:', counts.map((row) => `${row.status}=${row.count}`).join(', '));
 
   // PI reserved recurring blocks (FR-23) to show on the calendar.
+  // A second/third-week block can collide with a student run, so this is optional.
   const reserveDay = days[2];
-  await overrideService.apply(admin, {
-    type: 'reserve',
-    machineId: byName.Microscope.id,
-    start: localAt(reserveDay, 9),
-    end: localAt(reserveDay, 10),
-    recurrence: { freq: 'weekly', count: 4 }
-  }, 'Weekly group meeting imaging block');
-  console.log('Reserved a weekly PI block on the microscope (4 weeks).');
+  try {
+    await overrideService.apply(admin, {
+      type: 'reserve',
+      machineId: byName.Microscope.id,
+      start: localAt(reserveDay, 9),
+      end: localAt(reserveDay, 10),
+      recurrence: { freq: 'weekly', count: 4 }
+    }, 'Weekly group meeting imaging block');
+    console.log('Reserved a weekly PI block on the microscope (4 weeks).');
+  } catch (error) {
+    console.warn(`PI reservation skipped: ${error.message}`);
+  }
 
   // Centrifuge outage two days from now; affected bookings are re-planned.
   const outageDay = days[4];

@@ -6,11 +6,11 @@
 import { withRead, withTransaction } from '../db/pool.js';
 import {
   endOutageRow,
+  getAttentionList,
   insertBookingRow,
   insertOutage,
   setMachineStatus,
   setRequestScheduled,
-  setRequestStatus,
   supersedeBooking
 } from '../db/queries.js';
 import { applyPlacements } from './bookingService.js';
@@ -190,6 +190,5 @@ function sanitizeChange(change) {
 }
 
 export async function listAttention(now = new Date()) {
-  const { getAttentionList } = await import('../db/queries.js');
   return withRead((client) => getAttentionList(client, now));
 }
