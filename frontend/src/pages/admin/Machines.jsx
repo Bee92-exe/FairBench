@@ -133,11 +133,11 @@ export function Machines() {
                 </span>
               </div>
               <div className="text-xs text-slate-500">
-                Buffer: <span className="font-semibold text-slate-700">{m.buffer_minutes || m.bufferMin || 10} minutes</span> between runs
+                Buffer: <span className="font-semibold text-slate-700">{m.bufferMinutes ?? m.buffer_minutes ?? 10} minutes</span> between runs
               </div>
-              {(m.reliability_note || m.warning) && (
+              {(m.reliabilityNote || m.reliability_note || m.warning) && (
                 <div className="p-2.5 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800">
-                  {m.reliability_note || m.warning}
+                  {m.reliabilityNote || m.reliability_note || m.warning}
                 </div>
               )}
             </div>

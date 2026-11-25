@@ -7,6 +7,7 @@
 
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
+import { getSettings } from './settings.js';
 import { bookings, outages } from './dataStore.js';
 
 const router = Router();
@@ -15,7 +16,7 @@ router.get('/', authenticate, (req, res, next) => {
   try {
     const { machineId, from, to } = req.query;
     const isAdmin = req.user?.role === 'admin';
-    const showNames = true; // By default true, settings can override
+    const showNames = getSettings().show_names !== false;
 
     let filteredBookings = bookings.filter(b => b.status === 'active');
     if (machineId) {

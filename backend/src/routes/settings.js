@@ -6,6 +6,7 @@
  */
 
 import { Router } from 'express';
+import { requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -28,6 +29,14 @@ let cachedSettings = {
 };
 
 /**
+ * Read-only view of the current settings for other routes (e.g. the calendar
+ * needs `show_names` to decide whether to label student bookings).
+ */
+export function getSettings() {
+  return cachedSettings;
+}
+
+/**
  * GET /api/settings
  * Accessible by all users & visitors
  */
@@ -44,18 +53,8 @@ router.get('/', async (req, res, next) => {
  * PUT /api/settings
  * Admin role required (NFR-04)
  */
-router.put('/', async (req, res, next) => {
+router.put('/', requireRole('admin'), async (req, res, next) => {
   try {
-    // Role check (Aranno's middleware or inline guard)
-    if (req.user && req.user.role !== 'admin') {
-      return res.status(403).json({
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only lab administrators can modify settings'
-        }
-      });
-    }
-
     const updates = req.body;
     cachedSettings = {
       ...cachedSettings,

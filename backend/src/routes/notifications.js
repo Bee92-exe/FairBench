@@ -7,8 +7,14 @@
  */
 
 import { Router } from 'express';
+import { requireAuth } from '../middleware/auth.js';
+import { AppError } from '../middleware/errors.js';
 
 const router = Router();
+
+// Every notification route is scoped to the signed-in user. Without this,
+// an anonymous caller would be served the fallback account's inbox.
+router.use(requireAuth);
 
 let notificationsStore = [];
 
@@ -17,7 +23,7 @@ let notificationsStore = [];
  */
 router.get('/', async (req, res, next) => {
   try {
-    const userId = req.user?.id || 'usr-sirat';
+    const userId = req.user.id;
     const unreadOnly = req.query.unread === 'true';
 
     let userNotifs = notificationsStore.filter(n => n.userId === userId);
@@ -38,10 +44,11 @@ router.get('/', async (req, res, next) => {
 router.post('/:id/read', async (req, res, next) => {
   try {
     const { id } = req.params;
-    const notif = notificationsStore.find(n => n.id === id);
-    if (notif) {
-      notif.read = true;
+    const notif = notificationsStore.find(n => n.id === id && n.userId === req.user.id);
+    if (!notif) {
+      return next(new AppError('NOT_FOUND', 'Notification not found', null, 404));
     }
+    notif.read = true;
     res.json({ success: true });
   } catch (err) {
     next(err);
@@ -53,7 +60,7 @@ router.post('/:id/read', async (req, res, next) => {
  */
 router.post('/read-all', async (req, res, next) => {
   try {
-    const userId = req.user?.id || 'usr-sirat';
+    const userId = req.user.id;
     notificationsStore.forEach(n => {
       if (n.userId === userId) n.read = true;
     });

@@ -26,9 +26,7 @@ router.get('/', (req, res, next) => {
         name: m.name,
         status: activeOutage ? 'out_of_service' : m.status,
         bufferMinutes: m.buffer_minutes,
-        buffer_minutes: m.buffer_minutes,
         reliabilityNote: m.reliability_note,
-        reliability_note: m.reliability_note,
         currentOutage: activeOutage || null
       };
     });

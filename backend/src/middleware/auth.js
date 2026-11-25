@@ -9,6 +9,11 @@
 
 import { AppError } from './errors.js';
 import { getSupabase } from '../config/supabase.js';
+import { env } from '../config/env.js';
+
+// Development and test tokens are honoured only outside production, so a
+// deployed server can never be entered with a well-known string.
+const ALLOW_MOCK_AUTH = env.NODE_ENV !== 'production';
 
 // Mock profiles for development / testing without live Supabase connection
 const MOCK_PROFILES = {
@@ -26,62 +31,54 @@ const MOCK_PROFILES = {
 async function resolveUserFromToken(token) {
   if (!token) return null;
 
-  // 1. Check mock / dev tokens first
-  if (MOCK_PROFILES[token]) {
+  // 1. Development / test tokens (never honoured in production)
+  if (ALLOW_MOCK_AUTH && MOCK_PROFILES[token]) {
     return MOCK_PROFILES[token];
   }
 
-  // 2. If live Supabase client exists
+  // 2. Live Supabase verification
   const supabase = getSupabase();
-  if (supabase) {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) {
-      throw new AppError('UNAUTHENTICATED', 'Invalid or expired authentication token', null, 401);
-    }
+  if (!supabase) {
+    // Fail closed. Without Supabase there is no way to verify a token, and
+    // synthesising an identity from an arbitrary string would let any caller
+    // claim any role — including admin.
+    throw new AppError(
+      'UNAUTHENTICATED',
+      'Authentication is not configured on this server',
+      null,
+      401
+    );
+  }
 
-    // Load profile from profiles table
-    const { data: profile, error: profileErr } = await supabase
-      .from('profiles')
-      .select('id, email, full_name, role, active')
-      .eq('id', user.id)
-      .single();
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) {
+    throw new AppError('UNAUTHENTICATED', 'Invalid or expired authentication token', null, 401);
+  }
 
-    if (profileErr || !profile) {
-      // Default fallback profile if not found
-      return {
-        id: user.id,
-        email: user.email,
-        fullName: user.user_metadata?.full_name || user.email?.split('@')[0],
-        role: user.user_metadata?.role || 'student',
-        active: true
-      };
-    }
+  // Load profile from profiles table
+  const { data: profile, error: profileErr } = await supabase
+    .from('profiles')
+    .select('id, email, full_name, role, active')
+    .eq('id', user.id)
+    .single();
 
+  if (profileErr || !profile) {
+    // Default fallback profile if not found
     return {
-      id: profile.id,
-      email: profile.email,
-      fullName: profile.full_name,
-      role: profile.role,
-      active: profile.active
+      id: user.id,
+      email: user.email,
+      fullName: user.user_metadata?.full_name || user.email?.split('@')[0],
+      role: user.user_metadata?.role || 'student',
+      active: true
     };
   }
 
-  // 3. Fallback: Parse mock JWT or bearer token
-  if (token.startsWith('Bearer ')) {
-    token = token.slice(7);
-  }
-  
-  if (MOCK_PROFILES[token]) {
-    return MOCK_PROFILES[token];
-  }
-
-  // If token is unknown in mock mode
   return {
-    id: 'usr-' + token.slice(0, 8),
-    email: `${token}@lab.test`,
-    fullName: token.charAt(0).toUpperCase() + token.slice(1),
-    role: token.includes('admin') ? 'admin' : 'student',
-    active: !token.includes('inactive')
+    id: profile.id,
+    email: profile.email,
+    fullName: profile.full_name,
+    role: profile.role,
+    active: profile.active
   };
 }
 
