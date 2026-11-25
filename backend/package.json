@@ -16,6 +16,7 @@
     "start": "node src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "smoke": "node scripts/smoke.mjs",
     "migrate": "node ../database/migrate.js",
     "seed": "node ../database/seed/seed.js"
   },
