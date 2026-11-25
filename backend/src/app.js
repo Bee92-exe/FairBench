@@ -36,8 +36,18 @@ if (env.NODE_ENV === 'production') {
 app.use(helmet());
 
 // Security & standard middlewares
+// In development any localhost port is allowed: Vite silently moves to 5174
+// when 5173 is taken, and a CORS rejection looks like a failed login in the
+// browser. Production stays pinned to CORS_ORIGIN.
+const localOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
 app.use(cors({
-  origin: env.CORS_ORIGIN || '*',
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);                       // curl, same-origin
+    if (origin === env.CORS_ORIGIN) return callback(null, true);
+    if (env.NODE_ENV !== 'production' && localOrigin.test(origin)) return callback(null, true);
+    return callback(null, false);
+  },
   credentials: true
 }));
 app.use(express.json({ limit: '1mb' }));

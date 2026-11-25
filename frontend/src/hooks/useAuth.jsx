@@ -15,6 +15,16 @@ function toProfile(profile) {
   };
 }
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
+/** Turns a network/CORS failure into something a human can act on. */
+function explainAuthError(err) {
+  if (err instanceof TypeError) {
+    return `Could not reach the API at ${API_URL}. Is the backend running?`;
+  }
+  return err.message || 'Sign in failed';
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,17 +35,11 @@ export function AuthProvider({ children }) {
       setUser(null);
       return null;
     }
-    try {
-      const data = await apiRequest('/api/me', { token: accessToken });
-      const profile = toProfile(data.user ?? data.profile ?? data);
-      setUser(profile);
-      setError(null);
-      return profile;
-    } catch (err) {
-      setUser(null);
-      if (err.code === 'ACCOUNT_INACTIVE') setError('This account has been deactivated.');
-      return null;
-    }
+    const data = await apiRequest('/api/me', { token: accessToken });
+    const profile = toProfile(data.user ?? data.profile ?? data);
+    setUser(profile);
+    setError(null);
+    return profile;
   }, []);
 
   useEffect(() => {
@@ -49,10 +53,20 @@ export function AuthProvider({ children }) {
       .then(async ({ data }) => {
         await loadProfile(data.session?.access_token);
       })
+      .catch((err) => {
+        // Bootstrap failure must not throw, but it should not be silent either.
+        setUser(null);
+        if (err.code === 'ACCOUNT_INACTIVE') setError('This account has been deactivated.');
+      })
       .finally(() => setLoading(false));
 
     const { data: subscription } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      await loadProfile(session?.access_token);
+      try {
+        await loadProfile(session?.access_token);
+      } catch (err) {
+        setUser(null);
+        if (err.code === 'ACCOUNT_INACTIVE') setError('This account has been deactivated.');
+      }
     });
 
     const onUnauthorized = () => {
@@ -74,9 +88,18 @@ export function AuthProvider({ children }) {
     try {
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) throw new Error(signInError.message);
+
       const { data } = await supabase.auth.getSession();
-      await loadProfile(data.session?.access_token);
+      const profile = await loadProfile(data.session?.access_token);
+
+      // Signed in with Supabase but the API could not confirm the profile.
+      // Report it, instead of navigating to a page that bounces straight back.
+      if (!profile) {
+        throw new Error('Signed in, but your profile could not be loaded from the API.');
+      }
       return { success: true };
+    } catch (err) {
+      throw new Error(explainAuthError(err));
     } finally {
       setLoading(false);
     }
