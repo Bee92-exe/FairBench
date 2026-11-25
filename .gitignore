@@ -14,6 +14,16 @@ dist-ssr/
 .env.*
 !.env.example
 
+# ---- Secrets and key material ----
+*.pem
+*.key
+*.p12
+*.jks
+
+# ---- Supabase CLI local state (project ref, temp files) ----
+**/supabase/.temp/
+**/supabase/.branches/
+
 # ---- Logs ----
 npm-debug.log*
 yarn-debug.log*
@@ -34,6 +44,9 @@ env/
 .DS_Store
 Thumbs.db
 *.swp
+.brud/
+.freebuff/
 
 # ---- Local scratch / backups (not part of the project) ----
 .local-backup/
+.tmp-*
