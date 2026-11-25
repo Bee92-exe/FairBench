@@ -1,7 +1,7 @@
 /**
  * Requests Route
  * Owner: Aranno (A-BE-3, FR-04 to FR-09, FR-35)
- * - POST /api/requests: Submit request with FR-08 validation & scheduling placement
+ * - POST /api/requests: Submit request with FR-08 validation, placed by the real scheduler
  * - GET /api/requests/mine: List own requests
  * - PATCH /api/requests/:id: Edit unstarted request
  * - POST /api/requests/:id/cancel: Cancel request
@@ -12,8 +12,51 @@ import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { AppError } from '../middleware/errors.js';
 import { machines, requests, bookings, outages } from './dataStore.js';
+import { getSettings } from './settings.js';
+import { schedule, normalizeSettings } from '../scheduler/index.js';
 
 const router = Router();
+
+/**
+ * Settings as the scheduler expects them. The store keeps snake_case and
+ * partial data; the engine wants one normalised shape.
+ */
+function schedulerSettings(store = {}) {
+  return normalizeSettings({
+    timezone: store.timezone,
+    openingHours: {
+      days: store.opening_days ?? [0, 1, 2, 3, 4],
+      start: store.opening_time ?? '09:00',
+      end: store.closing_time ?? '17:00'
+    },
+    slotMinutes: Number(store.slot_minutes ?? 15),
+    quota: {
+      weekly_hours: Number(store.weekly_quota_hours ?? 10),
+      open_requests: Number(store.open_requests_limit ?? 5)
+    },
+    weights: store.score_weights ?? undefined
+  });
+}
+
+/** Existing bookings, in the shape the engine reads as "kept" time. */
+function keptBookings() {
+  return bookings
+    .filter((b) => b.status === 'active')
+    .map((b) => ({
+      booking: {
+        id: b.id,
+        machineId: b.machine_id,
+        startAt: b.start_at,
+        endAt: b.end_at,
+        occupiedUntil: b.occupied_until,
+        pinned: b.pinned,
+        startedAt: b.started_at ?? null,
+        kind: b.kind
+      },
+      request: requests.find((r) => r.id === b.request_id) ?? null,
+      locked: b.pinned ? 'pinned' : (b.started_at ? 'started' : null)
+    }));
+}
 
 // Validation schema for request submission (FR-08)
 const requestSubmitSchema = z.object({
@@ -78,6 +121,11 @@ const requestSubmitSchema = z.object({
 
 /**
  * POST /api/requests
+ *
+ * Placement is decided by backend/src/scheduler, the same pure module the
+ * services layer uses. This route must not grow its own scheduling rules —
+ * a second copy is exactly how the documented algorithm and the running app
+ * drift apart.
  */
 router.post('/', requireAuth, async (req, res, next) => {
   try {
@@ -93,83 +141,78 @@ router.post('/', requireAuth, async (req, res, next) => {
     const input = parseResult.data;
     const user = req.user;
 
-    // Check machine exists
     const machine = machines.find(m => m.id === input.machineId);
     if (!machine) {
       throw new AppError('NOT_FOUND', `Machine '${input.machineId}' not found`, null, 404);
     }
 
-    // Quota check (FR-10): max 5 open requests
-    const openCount = requests.filter(r => r.student_id === user.id && ['pending', 'scheduled', 'waiting'].includes(r.status)).length;
-    if (openCount >= 5) {
-      throw new AppError('QUOTA_EXCEEDED', 'You have reached the limit of 5 open requests', null, 422);
+    // Quota (FR-10) — the limit comes from settings, not a hardcoded number.
+    const storeSettings = getSettings();
+    const openLimit = Number(storeSettings.open_requests_limit ?? 5);
+    const openCount = requests.filter(r =>
+      r.student_id === user.id && ['pending', 'scheduled', 'waiting'].includes(r.status)
+    ).length;
+    if (openCount >= openLimit) {
+      throw new AppError('QUOTA_EXCEEDED', `You have reached the limit of ${openLimit} open requests`, null, 422);
     }
 
-    const start = new Date(input.windowStart);
-    const end = new Date(input.windowEnd);
-    const reqId = 'req-' + Math.random().toString(36).substr(2, 9);
+    const now = new Date();
+    const reqId = 'req-' + Math.random().toString(36).slice(2, 11);
+    const studentName = user.fullName || user.email?.split('@')[0] || null;
 
-    // Compute basic score
-    const hoursToDeadline = Math.max(0, (end.getTime() - Date.now()) / (1000 * 60 * 60));
-    const deadlineScore = Math.min(100, Math.max(0, 100 * (1 - hoursToDeadline / 168)));
-    const windowMins = (end.getTime() - start.getTime()) / (1000 * 60);
-    const slack = windowMins - input.durationMin;
-    const tightnessScore = Math.min(100, Math.max(0, 100 * (1 - slack / windowMins)));
-    const totalScore = Number((0.6 * deadlineScore + 0.4 * tightnessScore).toFixed(1));
+    const engineRequest = {
+      id: reqId,
+      studentId: user.id,
+      studentName,
+      machineId: machine.id,
+      durationMin: input.durationMin,
+      windowStart: input.windowStart,
+      windowEnd: input.windowEnd,
+      isFixed: input.isFixed,
+      reason: input.reason ?? null,
+      urgency: input.urgency,
+      status: 'pending',
+      createdAt: now.toISOString()
+    };
 
-    // Try finding a placement on the slot grid (simulated scheduler)
-    let slotStart = new Date(start);
-    slotStart.setMinutes(Math.ceil(slotStart.getMinutes() / 15) * 15, 0, 0);
+    const result = schedule({
+      now,
+      settings: schedulerSettings(storeSettings),
+      machines: machines.map(m => ({
+        id: m.id,
+        name: m.name,
+        bufferMinutes: m.buffer_minutes ?? 0
+      })),
+      outages: outages.map(o => ({
+        id: o.id,
+        machineId: o.machine_id,
+        start: o.start_at,
+        end: o.end_at,
+        endedEarlyAt: o.ended_early_at ?? null
+      })),
+      kept: keptBookings(),
+      toPlace: [engineRequest]
+    });
 
-    let placedBooking = null;
-    let placed = false;
-
-    // Check if slot fits before windowEnd
-    const requiredEnd = new Date(slotStart.getTime() + input.durationMin * 60 * 1000);
-    const bufferMins = machine.buffer_minutes || 10;
-    const occupiedUntil = new Date(requiredEnd.getTime() + bufferMins * 60 * 1000);
-
-    // Check conflict with active bookings on same machine
-    const hasConflict = bookings.some(b => 
-      b.machine_id === machine.id &&
-      b.status === 'active' &&
-      new Date(b.start_at) < occupiedUntil &&
-      new Date(b.occupied_until) > slotStart
-    );
-
-    // Check conflict with outages
-    const hasOutageConflict = outages.some(o => 
-      o.machine_id === machine.id &&
-      !o.ended_early_at &&
-      new Date(o.start_at) < occupiedUntil &&
-      new Date(o.end_at) > slotStart
-    );
-
-    if (!hasConflict && !hasOutageConflict && requiredEnd <= end) {
-      placed = true;
-      const bookingId = 'book-' + Math.random().toString(36).substr(2, 9);
-      placedBooking = {
-        id: bookingId,
-        request_id: reqId,
-        machine_id: machine.id,
-        student_id: user.id,
-        student_name: user.fullName || user.email?.split('@')[0],
-        kind: 'student',
-        start_at: slotStart.toISOString(),
-        end_at: requiredEnd.toISOString(),
-        occupied_until: occupiedUntil.toISOString(),
-        pinned: false,
-        set_by: 'system',
-        status: 'active',
-        reason: `Placed ${slotStart.toLocaleDateString('en-GB', { weekday: 'short' })} ${slotStart.toTimeString().slice(0, 5)}: earliest free slot inside your window.`
-      };
-      bookings.push(placedBooking);
+    // The engine may have moved one flexible booking to make room (FR-42).
+    // Persist those moves, otherwise the store and the plan disagree.
+    for (const move of result.moves ?? []) {
+      const moved = bookings.find(b => b.id === move.bookingId);
+      if (moved) {
+        moved.start_at = move.start;
+        moved.end_at = move.end;
+        moved.occupied_until = move.occupiedUntil;
+        moved.reason = move.reason;
+      }
     }
+
+    const placement = result.placements?.[0] ?? null;
+    const rejection = result.unplaced?.[0] ?? null;
 
     const newRequest = {
       id: reqId,
       student_id: user.id,
-      student_name: user.fullName || user.email?.split('@')[0],
+      student_name: studentName,
       machine_id: machine.id,
       duration_min: input.durationMin,
       window_start: input.windowStart,
@@ -177,18 +220,33 @@ router.post('/', requireAuth, async (req, res, next) => {
       is_fixed: input.isFixed,
       reason: input.reason || null,
       urgency: input.urgency,
-      status: placed ? 'scheduled' : 'unplaced',
-      score: totalScore,
-      score_breakdown: {
-        deadline: Number(deadlineScore.toFixed(1)),
-        tightness: Number(tightnessScore.toFixed(1)),
-        waiting: 0,
-        fairness: 0
-      },
-      unplaced_reason: placed ? null : `${machine.name} has no continuous ${input.durationMin}-minute slot free in your window`,
-      suggestion: placed ? null : 'Widen your window by one day or choose a shorter run',
-      created_at: new Date().toISOString()
+      status: placement ? 'scheduled' : 'unplaced',
+      score: placement?.score ?? rejection?.score ?? null,
+      score_breakdown: placement?.scoreBreakdown ?? rejection?.scoreBreakdown ?? null,
+      unplaced_reason: placement ? null : (rejection?.reason ?? null),
+      suggestion: placement ? null : (rejection?.suggestion ?? null),
+      created_at: now.toISOString()
     };
+
+    let booking = null;
+    if (placement) {
+      booking = {
+        id: 'book-' + Math.random().toString(36).slice(2, 11),
+        request_id: reqId,
+        machine_id: placement.machineId,
+        student_id: user.id,
+        student_name: studentName,
+        kind: 'student',
+        start_at: placement.start,
+        end_at: placement.end,
+        occupied_until: placement.occupiedUntil,
+        pinned: false,
+        set_by: 'system',
+        status: 'active',
+        reason: placement.reason
+      };
+      bookings.push(booking);
+    }
 
     requests.push(newRequest);
 
@@ -201,12 +259,12 @@ router.post('/', requireAuth, async (req, res, next) => {
         unplacedReason: newRequest.unplaced_reason,
         suggestion: newRequest.suggestion
       },
-      booking: placedBooking ? {
-        id: placedBooking.id,
-        machineId: placedBooking.machine_id,
-        start: placedBooking.start_at,
-        end: placedBooking.end_at,
-        reason: placedBooking.reason
+      booking: booking ? {
+        id: booking.id,
+        machineId: booking.machine_id,
+        start: booking.start_at,
+        end: booking.end_at,
+        reason: booking.reason
       } : null
     });
   } catch (err) {
