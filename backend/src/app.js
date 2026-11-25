@@ -6,6 +6,8 @@
 
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { env } from './config/env.js';
 import { errorHandler, AppError } from './middleware/errors.js';
 
@@ -22,12 +24,42 @@ import adminRouter from './routes/admin.js';
 
 const app = express();
 
+// Behind a hosting proxy the client IP arrives in X-Forwarded-For; without this
+// every caller would share the proxy's address and one rate-limit bucket.
+if (env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
+// Security headers (NFR-04)
+app.use(helmet());
+
 // Security & standard middlewares
 app.use(cors({
   origin: env.CORS_ORIGIN || '*',
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+
+// Rate limiting on write routes. Reads stay unlimited so the calendar and the
+// notification poller can refetch on their 30 second interval.
+const writeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => env.NODE_ENV === 'test' ||
+    ['GET', 'HEAD', 'OPTIONS'].includes(req.method),
+  handler: (req, res) => {
+    res.status(429).json({
+      error: {
+        code: 'RATE_LIMITED',
+        message: 'Too many requests. Please slow down.',
+        details: []
+      }
+    });
+  }
+});
+app.use('/api', writeLimiter);
 
 // Request logger for development / audit tracing
 if (env.NODE_ENV !== 'test') {
