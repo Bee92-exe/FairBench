@@ -18,18 +18,26 @@ import * as overrideService from '../../backend/src/services/overrideService.js'
 const TZ = process.env.LAB_TIMEZONE || 'Asia/Dhaka';
 const PASSWORD = process.env.SEED_PASSWORD || 'FairBench-demo-2026';
 
+// Optional demo data. Every value below can be overridden so this script works
+// for another lab without editing it — see SEED_* in backend/.env.example.
+const STUDENT_COUNT = Number(process.env.SEED_STUDENT_COUNT ?? 20);
+const STUDENT_DOMAIN = process.env.SEED_STUDENT_DOMAIN ?? 'lab.test';
+
 const supabase = createClient(
   requireEnv('SUPABASE_URL'),
   requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-const STUDENTS = Array.from({ length: 20 }, (_, index) => {
+const STUDENTS = Array.from({ length: STUDENT_COUNT }, (_, index) => {
   const n = String(index + 1).padStart(2, '0');
-  return { email: `student${n}@lab.test`, name: `Student ${n}` };
+  return { email: `student${n}@${STUDENT_DOMAIN}`, name: `Student ${n}` };
 });
 
-const ADMIN = { email: 'drhaque@lab.test', name: 'Dr. Haque' };
+const ADMIN = {
+  email: process.env.SEED_ADMIN_EMAIL ?? `admin@${STUDENT_DOMAIN}`,
+  name: process.env.SEED_ADMIN_NAME ?? 'Lab Manager'
+};
 
 async function findUserByEmail(email) {
   let page = 1;
