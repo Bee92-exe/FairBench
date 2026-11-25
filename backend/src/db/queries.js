@@ -547,6 +547,96 @@ export async function getAttentionList(client, now = new Date()) {
   };
 }
 
+export async function listBookingsForStudent(client, studentId) {
+  const { rows } = await client.query(
+    `select b.*
+       from bookings b
+       join requests r on r.id = b.request_id
+      where r.student_id = $1
+      order by b.start_at desc`,
+    [studentId]
+  );
+  return rows.map(mapBookingRow);
+}
+
+/** Upsert the given keys and return the whole settings map afterwards. */
+export async function upsertSettings(client, patch = {}, userId = null) {
+  for (const [key, value] of Object.entries(patch)) {
+    await client.query(
+      `insert into settings (key, value, updated_by, updated_at)
+       values ($1, $2::jsonb, $3, now())
+       on conflict (key) do update
+         set value = excluded.value,
+             updated_by = excluded.updated_by,
+             updated_at = now()`,
+      [key, JSON.stringify(value), userId]
+    );
+  }
+  return loadSettings(client);
+}
+
+export async function listProfiles(client) {
+  const { rows } = await client.query(
+    'select id, full_name, email, role, active, created_at from profiles order by created_at'
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    fullName: row.full_name,
+    email: row.email,
+    role: row.role,
+    active: row.active,
+    createdAt: row.created_at
+  }));
+}
+
+export async function setProfileActive(client, profileId, active) {
+  const { rows } = await client.query(
+    'update profiles set active = $2 where id = $1 returning id, full_name, email, role, active',
+    [profileId, active]
+  );
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    email: row.email,
+    role: row.role,
+    active: row.active
+  };
+}
+
+/** Every request, for the admin console, optionally filtered by status. */
+export async function listRequestsAdmin(client, { status = null, limit = 200 } = {}) {
+  const { rows } = await client.query(
+    `select r.*, p.full_name,
+            b.id as booking_id, b.machine_id as booking_machine_id, b.start_at, b.end_at,
+            b.occupied_until, b.reason as booking_reason, b.pinned, b.set_by, b.status as booking_status
+       from requests r
+       join profiles p on p.id = r.student_id
+       left join bookings b on b.request_id = r.id and b.status = 'active'
+      where $1::text is null or r.status = $1::text
+      order by r.created_at desc
+      limit $2`,
+    [status, limit]
+  );
+  return rows.map((row) => ({
+    ...mapRequestRow(row),
+    booking: row.booking_id
+      ? {
+          id: row.booking_id,
+          machineId: row.booking_machine_id,
+          start: row.start_at,
+          end: row.end_at,
+          occupiedUntil: row.occupied_until,
+          pinned: row.pinned,
+          setBy: row.set_by,
+          status: row.booking_status,
+          reason: row.booking_reason
+        }
+      : null
+  }));
+}
+
 export async function getDashboard(client) {
   const { rows } = await client.query(
     `select

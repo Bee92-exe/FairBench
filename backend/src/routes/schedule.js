@@ -9,13 +9,54 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { getSettings } from './settings.js';
 import { bookings, outages } from './dataStore.js';
+import { USE_POSTGRES } from '../config/dataSource.js';
+import { withRead } from '../db/pool.js';
+import { getScheduleBlocks, listMachines, listOutages, loadSettings } from '../db/queries.js';
 
 const router = Router();
 
-router.get('/', authenticate, (req, res, next) => {
+router.get('/', authenticate, async (req, res, next) => {
   try {
     const { machineId, from, to } = req.query;
     const isAdmin = req.user?.role === 'admin';
+
+    if (USE_POSTGRES) {
+      const settings = await withRead((client) => loadSettings(client));
+      const machineList = await withRead((client) => listMachines(client));
+      const targets = machineId ? [machineId] : machineList.map((m) => m.id);
+      const fromIso = from ?? new Date(Date.now() - 7 * 864e5).toISOString();
+      const toIso = to ?? new Date(Date.now() + 28 * 864e5).toISOString();
+
+      const blocks = [];
+      for (const id of targets) {
+        blocks.push(...await withRead((client) => getScheduleBlocks(client, {
+          machineId: id,
+          from: fromIso,
+          to: toIso,
+          viewer: req.user?.id ?? null,
+          showNames: settings.showNames,
+          isAdmin
+        })));
+      }
+
+      const allOutages = await withRead((client) => listOutages(client, { includeEnded: false }));
+      const filteredOutages = machineId
+        ? allOutages.filter((o) => String(o.machineId) === String(machineId))
+        : allOutages;
+
+      return res.json({
+        machineId: machineId || null,
+        blocks,
+        outages: filteredOutages.map((o) => ({
+          id: o.id,
+          machineId: o.machineId,
+          start: o.start,
+          end: o.end,
+          note: o.note
+        }))
+      });
+    }
+
     const showNames = getSettings().show_names !== false;
 
     let filteredBookings = bookings.filter(b => b.status === 'active');

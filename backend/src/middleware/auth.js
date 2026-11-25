@@ -10,6 +10,9 @@
 import { AppError } from './errors.js';
 import { getSupabase } from '../config/supabase.js';
 import { env } from '../config/env.js';
+import { USE_POSTGRES } from '../config/dataSource.js';
+import { withRead } from '../db/pool.js';
+import { getProfile } from '../db/queries.js';
 
 // Development and test tokens are honoured only outside production, so a
 // deployed server can never be entered with a well-known string.
@@ -33,6 +36,16 @@ async function resolveUserFromToken(token) {
 
   // 1. Development / test tokens (never honoured in production)
   if (ALLOW_MOCK_AUTH && MOCK_PROFILES[token]) {
+    if (USE_POSTGRES) {
+      // These identities exist only in the fixtures. Against the real schema
+      // their ids are not UUIDs, so every query would fail on a cast.
+      throw new AppError(
+        'UNAUTHENTICATED',
+        'Development tokens are not available when a database is configured',
+        null,
+        401
+      );
+    }
     return MOCK_PROFILES[token];
   }
 
@@ -53,6 +66,23 @@ async function resolveUserFromToken(token) {
   const { data: { user }, error } = await supabase.auth.getUser(token);
   if (error || !user) {
     throw new AppError('UNAUTHENTICATED', 'Invalid or expired authentication token', null, 401);
+  }
+
+  // Against the real schema, read the profile through the pg pool rather than
+  // PostgREST: the service-role key has no GRANT on `profiles` unless the
+  // deployment granted one, and a failed lookup here would silently demote an
+  // admin to student.
+  if (USE_POSTGRES) {
+    const row = await withRead((client) => getProfile(client, user.id));
+    if (row) {
+      return {
+        id: row.id,
+        email: row.email,
+        fullName: row.name,
+        role: row.role,
+        active: row.active
+      };
+    }
   }
 
   // Load profile from profiles table

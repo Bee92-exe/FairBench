@@ -7,12 +7,34 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { bookings } from './dataStore.js';
+import { USE_POSTGRES } from '../config/dataSource.js';
+import { withRead } from '../db/pool.js';
+import { listBookingsForStudent } from '../db/queries.js';
 
 const router = Router();
 
-router.get('/mine', requireAuth, (req, res, next) => {
+router.get('/mine', requireAuth, async (req, res, next) => {
   try {
     const user = req.user;
+
+    if (USE_POSTGRES) {
+      const rows = await withRead((client) => listBookingsForStudent(client, user.id));
+      return res.json({
+        bookings: rows.map((b) => ({
+          id: b.id,
+          requestId: b.requestId,
+          machineId: b.machineId,
+          kind: b.kind,
+          start: b.start,
+          end: b.end,
+          occupiedUntil: b.occupiedUntil,
+          pinned: b.pinned,
+          status: b.status,
+          reason: b.reason
+        }))
+      });
+    }
+
     const userBookings = bookings.filter(b => b.student_id === user.id);
 
     res.json({

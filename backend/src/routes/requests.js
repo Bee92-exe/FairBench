@@ -14,6 +14,8 @@ import { AppError } from '../middleware/errors.js';
 import { machines, requests, bookings, outages } from './dataStore.js';
 import { getSettings } from './settings.js';
 import { schedule, normalizeSettings } from '../scheduler/index.js';
+import { USE_POSTGRES } from '../config/dataSource.js';
+import * as requestService from '../services/requestService.js';
 
 const router = Router();
 
@@ -140,6 +142,27 @@ router.post('/', requireAuth, async (req, res, next) => {
 
     const input = parseResult.data;
     const user = req.user;
+
+    if (USE_POSTGRES) {
+      const result = await requestService.submit(user, input);
+      return res.status(201).json({
+        request: {
+          id: result.request.id,
+          status: result.request.status,
+          score: result.request.score,
+          scoreBreakdown: result.request.scoreBreakdown,
+          unplacedReason: result.request.unplacedReason,
+          suggestion: result.request.suggestion
+        },
+        booking: result.booking ? {
+          id: result.booking.id,
+          machineId: result.booking.machineId,
+          start: result.booking.start,
+          end: result.booking.end,
+          reason: result.booking.reason
+        } : null
+      });
+    }
 
     const machine = machines.find(m => m.id === input.machineId);
     if (!machine) {
@@ -275,9 +298,15 @@ router.post('/', requireAuth, async (req, res, next) => {
 /**
  * GET /api/requests/mine
  */
-router.get('/mine', requireAuth, (req, res, next) => {
+router.get('/mine', requireAuth, async (req, res, next) => {
   try {
     const user = req.user;
+
+    if (USE_POSTGRES) {
+      const rows = await requestService.listMine(user);
+      return res.json({ requests: rows });
+    }
+
     const userRequests = requests.filter(r => r.student_id === user.id);
 
     const result = userRequests.map(r => {
@@ -297,9 +326,15 @@ router.get('/mine', requireAuth, (req, res, next) => {
 /**
  * PATCH /api/requests/:id
  */
-router.patch('/:id', requireAuth, (req, res, next) => {
+router.patch('/:id', requireAuth, async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    if (USE_POSTGRES) {
+      const result = await requestService.update(req.user, id, req.body);
+      return res.json({ request: result.request ?? result });
+    }
+
     const reqItem = requests.find(r => r.id === id);
 
     if (!reqItem) {
@@ -326,9 +361,15 @@ router.patch('/:id', requireAuth, (req, res, next) => {
 /**
  * POST /api/requests/:id/cancel
  */
-router.post('/:id/cancel', requireAuth, (req, res, next) => {
+router.post('/:id/cancel', requireAuth, async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    if (USE_POSTGRES) {
+      const result = await requestService.cancel(req.user, id);
+      return res.json({ success: true, request: result.request ?? result });
+    }
+
     const reqItem = requests.find(r => r.id === id);
 
     if (!reqItem) {
