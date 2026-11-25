@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '../api/client';
-import { MACHINES } from '../lib/constants';
+import { useMachines } from '../hooks/useMachines';
 import { CalendarView } from '../components/CalendarView';
 import { Modal } from '../components/Modal';
 import { Button } from '../components/Button';
@@ -15,18 +15,21 @@ import { Eye, EyeOff, ShieldAlert, Sparkles, AlertCircle } from 'lucide-react';
 export function LabCalendar() {
   const { user, isAdmin } = useAuth();
   const { settings, updateSettings } = useSettings();
-  const [activeMachineId, setActiveMachineId] = useState(MACHINES[0].id);
+  const { machines } = useMachines();
+  const [activeMachineId, setActiveMachineId] = useState('');
+  const resolvedMachineId = activeMachineId || machines[0]?.id || '';
   const [selectedItem, setSelectedItem] = useState(null);
 
   const { data: scheduleData, isLoading } = useQuery({
-    queryKey: ['schedule', activeMachineId],
+    queryKey: ['schedule', resolvedMachineId],
     queryFn: async () => {
-      return apiRequest(`/api/schedule?machineId=${activeMachineId}`);
+      return apiRequest(`/api/schedule?machineId=${resolvedMachineId}`);
     },
+    enabled: Boolean(resolvedMachineId),
     refetchInterval: 30000 // Refetch every 30s per FRONTEND_SPEC
   });
 
-  const activeMachine = MACHINES.find(m => m.id === activeMachineId) || MACHINES[0];
+  const activeMachine = machines.find(m => m.id === resolvedMachineId) || machines[0] || { name: '', code: '', description: '', bufferMin: 0 };
 
   const handleToggleNames = async () => {
     if (!isAdmin) return;
@@ -63,8 +66,8 @@ export function LabCalendar() {
 
       {/* Machine Tabs (FR-34) */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-        {MACHINES.map((machine) => {
-          const isActive = machine.id === activeMachineId;
+        {machines.map((machine) => {
+          const isActive = machine.id === resolvedMachineId;
           return (
             <button
               key={machine.id}
@@ -108,7 +111,7 @@ export function LabCalendar() {
         <Spinner label="Loading lab equipment calendar..." />
       ) : (
         <CalendarView
-          machineId={activeMachineId}
+          machineId={resolvedMachineId}
           blocks={scheduleData?.blocks || []}
           outages={scheduleData?.outages || []}
           onSelect={(item) => setSelectedItem(item)}

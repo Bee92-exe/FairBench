@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '../api/client';
-import { MACHINES, LAB_TIMEZONE } from '../lib/constants';
+import { LAB_TIMEZONE } from '../lib/constants';
+import { useMachines } from '../hooks/useMachines';
 import { utcToDhakaInput, localInputToUTC } from '../lib/time';
 import { Button } from '../components/Button';
 import { FormField } from '../components/FormField';
@@ -31,7 +32,9 @@ export function RequestForm() {
   const tomorrowEnd = new Date(tomorrow);
   tomorrowEnd.setHours(18, 0, 0, 0);
 
-  const [machineId, setMachineId] = useState(MACHINES[0].id);
+  const { machines } = useMachines();
+  const [machineId, setMachineId] = useState('');
+  const resolvedMachineId = machineId || machines[0]?.id || '';
   const [durationMin, setDurationMin] = useState(180); // 3 hours
   const [windowStart, setWindowStart] = useState(utcToDhakaInput(tomorrow.toISOString()));
   const [windowEnd, setWindowEnd] = useState(utcToDhakaInput(tomorrowEnd.toISOString()));
@@ -43,7 +46,7 @@ export function RequestForm() {
   const [loading, setLoading] = useState(false);
   const [resultModal, setResultModal] = useState(null); // { placed: boolean, request: obj, booking: obj }
 
-  const selectedMachine = MACHINES.find(m => m.id === machineId);
+  const selectedMachine = machines.find(m => m.id === resolvedMachineId);
 
   // Available duration slots (15 min to 8 hours in slot steps)
   const durationOptions = [
@@ -93,7 +96,7 @@ export function RequestForm() {
     setLoading(true);
     try {
       const payload = {
-        machineId,
+        machineId: resolvedMachineId,
         durationMin,
         windowStart: localInputToUTC(windowStart),
         windowEnd: localInputToUTC(windowEnd),
@@ -138,8 +141,8 @@ export function RequestForm() {
         {/* Machine Picker */}
         <FormField label="Target Equipment" required>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {MACHINES.map((machine) => {
-              const isSelected = machine.id === machineId;
+            {machines.map((machine) => {
+              const isSelected = machine.id === resolvedMachineId;
               return (
                 <div
                   key={machine.id}

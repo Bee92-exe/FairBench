@@ -1,47 +1,89 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { mockDb } from '../mocks/mockDb';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { apiRequest } from '../api/client';
+import { hasSupabaseConfig, supabase } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => mockDb.getCurrentUser());
-  const [loading, setLoading] = useState(false);
-
-  // Quick switch profile for development, testing, and demonstrations
-  const switchUser = (userIdOrRole) => {
-    const nextUser = mockDb.setCurrentUser(userIdOrRole);
-    setUser({ ...nextUser });
+function toProfile(profile) {
+  if (!profile) return null;
+  return {
+    id: profile.id,
+    email: profile.email,
+    name: profile.fullName ?? profile.name ?? profile.email,
+    role: profile.role ?? 'student',
+    active: profile.active !== false
   };
+}
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const loadProfile = useCallback(async (accessToken) => {
+    if (!accessToken) {
+      setUser(null);
+      return null;
+    }
+    try {
+      const data = await apiRequest('/api/me', { token: accessToken });
+      const profile = toProfile(data.user ?? data.profile ?? data);
+      setUser(profile);
+      setError(null);
+      return profile;
+    } catch (err) {
+      setUser(null);
+      if (err.code === 'ACCOUNT_INACTIVE') setError('This account has been deactivated.');
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return undefined;
+    }
+
+    supabase.auth
+      .getSession()
+      .then(async ({ data }) => {
+        await loadProfile(data.session?.access_token);
+      })
+      .finally(() => setLoading(false));
+
+    const { data: subscription } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      await loadProfile(session?.access_token);
+    });
+
+    const onUnauthorized = () => {
+      supabase.auth.signOut().finally(() => setUser(null));
+    };
+    window.addEventListener('unauthorized', onUnauthorized);
+
+    return () => {
+      subscription.subscription.unsubscribe();
+      window.removeEventListener('unauthorized', onUnauthorized);
+    };
+  }, [loadProfile]);
 
   const login = async (email, password) => {
+    if (!hasSupabaseConfig) {
+      throw new Error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+    }
     setLoading(true);
     try {
-      // If email matches one of the mock profiles
-      const profiles = mockDb.getProfiles();
-      const match = profiles.find(p => p.email.toLowerCase() === email.toLowerCase());
-      if (match) {
-        mockDb.setCurrentUser(match.id);
-        setUser({ ...match });
-      } else {
-        // Default student login
-        const newStudent = {
-          id: `usr-${Date.now().toString().slice(-4)}`,
-          email,
-          name: email.split('@')[0],
-          role: email.includes('admin') || email.includes('haque') ? 'admin' : 'student',
-          weeklyHoursUsed: 0,
-          openRequestsCount: 0
-        };
-        mockDb.setCurrentUser(newStudent);
-        setUser(newStudent);
-      }
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) throw new Error(signInError.message);
+      const { data } = await supabase.auth.getSession();
+      await loadProfile(data.session?.access_token);
       return { success: true };
     } finally {
       setLoading(false);
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    if (supabase) await supabase.auth.signOut();
     setUser(null);
   };
 
@@ -54,8 +96,8 @@ export function AuthProvider({ children }) {
       isStudent: user?.role === 'student',
       login,
       logout,
-      switchUser,
-      loading
+      loading,
+      error
     }}>
       {children}
     </AuthContext.Provider>

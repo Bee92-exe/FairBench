@@ -20,10 +20,11 @@ import {
   CheckCircle2,
   ChevronRight
 } from 'lucide-react';
-import { MACHINES } from '../lib/constants';
+import { useMachines } from '../hooks/useMachines';
 
 export function MyBookings() {
   const queryClient = useQueryClient();
+  const { machines } = useMachines();
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [requestToCancel, setRequestToCancel] = useState(null);
@@ -57,7 +58,7 @@ export function MyBookings() {
   const needsAttention = requests.filter(r => r.status === 'unplaced');
   const past = requests.filter(r => r.status === 'cancelled' || r.status === 'completed');
 
-  const getMachine = (id) => MACHINES.find(m => m.id === id) || { name: 'Unknown Machine', code: 'LAB' };
+  const getMachine = (id) => machines.find(m => m.id === id) || { name: 'Unknown Machine', code: 'LAB' };
 
   return (
     <div className="space-y-8">
