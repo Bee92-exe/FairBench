@@ -7,6 +7,7 @@
 ![Express](https://img.shields.io/badge/Express-4.x-000000?logo=express&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-4169E1?logo=postgresql&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-33%20passing-2E7D32)
+![License](https://img.shields.io/badge/license-MIT-2E7D32)
 
 ---
 
@@ -37,6 +38,36 @@ three guarantees:
 
 Nothing in the scheduling path reads the clock, the network, or the database, so
 the whole engine can be unit-tested without mocks.
+
+## Reusing the scheduler
+
+The placement engine is a standalone module: **930 lines, zero dependencies, no
+database, no HTTP, no clock.** Copy the folder and call one function.
+
+```bash
+cp -r backend/src/scheduler  your-project/src/scheduler
+```
+
+```js
+import { schedule } from './scheduler/index.js';
+
+const { placements, unplaced } = schedule({
+  now: new Date(),
+  settings: { timezone: 'Asia/Dhaka', slotMinutes: 15, openingHours: { days: [0,1,2,3,4], start: '09:00', end: '17:00' } },
+  machines: [{ id: 'm1', name: 'Microscope', bufferMinutes: 10 }],
+  outages: [],
+  kept: [],
+  toPlace: [/* requests with a window and a duration */]
+});
+```
+
+It answers the three questions any shared-resource booking system has to answer:
+who gets the slot when demand exceeds supply (weighted score), whether everyone
+can be fitted by moving one thing (single-move repair), and why a request got the
+slot it got (a stored reason and a suggestion). Nothing in it is specific to
+microscopes — machines, rooms, benches and people all fit the same model.
+
+→ **[Full API, scoring rules and a worked example](backend/src/scheduler/README.md)**
 
 ---
 
@@ -375,7 +406,15 @@ Built as a university software engineering project, November 2026.
 
 ---
 
+## Contributing
+
+Issues and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for
+the setup, the layer boundaries, and the two commands a change must pass.
+
 ## License
 
-No license has been declared for this repository. All rights are reserved by the
-authors; do not redistribute or reuse without permission.
+[MIT](LICENSE) © 2026 FairBench contributors.
+
+The scheduling engine is the part most worth borrowing. It is deliberately
+dependency-free so it can be lifted into another project without dragging the
+rest of this one along.

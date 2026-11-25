@@ -4,6 +4,12 @@
   "version": "1.0.0",
   "type": "module",
   "description": "FairBench services, scheduler and data layer (owner: Sabbir)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bee92-exe/FairBench.git",
+    "directory": "backend"
+  },
   "main": "src/server.js",
   "scripts": {
     "dev": "node --watch src/server.js",

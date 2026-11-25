@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "description": "FairBench migrations, seed and database checks (owner: Sabbir)",
+  "license": "MIT",
   "scripts": {
     "migrate": "node migrate.js",
     "seed": "node seed/seed.js",

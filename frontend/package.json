@@ -3,6 +3,13 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "description": "FairBench web client: student booking, lab calendar and admin console",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bee92-exe/FairBench.git",
+    "directory": "frontend"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
