@@ -6,11 +6,28 @@
 
 import { Router } from 'express';
 import { machines, outages } from './dataStore.js';
+import { USE_POSTGRES } from '../config/dataSource.js';
+import { withRead } from '../db/pool.js';
+import { listMachines } from '../db/queries.js';
 
 const router = Router();
 
-router.get('/', (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
+    if (USE_POSTGRES) {
+      const list = await withRead((client) => listMachines(client));
+      return res.json({
+        machines: list.map((m) => ({
+          id: m.id,
+          name: m.name,
+          status: m.currentOutage ? 'out_of_service' : m.status,
+          bufferMinutes: m.bufferMinutes,
+          reliabilityNote: m.reliabilityNote,
+          currentOutage: m.currentOutage
+        }))
+      });
+    }
+
     const now = new Date();
     const result = machines.map(m => {
       // Find active outage covering now

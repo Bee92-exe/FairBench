@@ -9,6 +9,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { env } from './config/env.js';
+import { USE_POSTGRES } from './config/dataSource.js';
 import { errorHandler, AppError } from './middleware/errors.js';
 
 // Route imports
@@ -21,6 +22,7 @@ import requestsRouter from './routes/requests.js';
 import scheduleRouter from './routes/schedule.js';
 import bookingsRouter from './routes/bookings.js';
 import adminRouter from './routes/admin.js';
+import adminPgRouter from './routes/adminPg.js';
 
 const app = express();
 
@@ -78,7 +80,9 @@ app.use('/api/machines', machinesRouter);
 app.use('/api/requests', requestsRouter);
 app.use('/api/schedule', scheduleRouter);
 app.use('/api/bookings', bookingsRouter);
-app.use('/api/admin', adminRouter);
+// Admin console: two implementations, one contract. The in-memory one keeps
+// the test suite independent of a database.
+app.use('/api/admin', USE_POSTGRES ? adminPgRouter : adminRouter);
 
 // 404 Handler
 app.use((req, res, next) => {
