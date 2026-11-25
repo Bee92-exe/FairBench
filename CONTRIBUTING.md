@@ -21,12 +21,20 @@ Supabase project and want an empty lab.
 ## Before you open a pull request
 
 ```bash
-cd backend && npm test        # 13 suites, 33 tests
+cd backend && npm test        # 14 suites, 47 tests
 cd frontend && npm run build  # must build cleanly
 ```
 
 Both must pass. If you touched the scheduler, the determinism test is the one
 that matters most: the same input must always produce the same plan.
+
+If you touched a route, the services layer or the schema, also run the smoke test
+against a real database — it exercises the write paths the unit suite cannot:
+
+```bash
+cd backend && npm run smoke              # submit, cancel, preview; cleans up after itself
+cd backend && npm run smoke -- --with-apply   # also applies an admin change
+```
 
 ## What to work on
 

@@ -6,7 +6,7 @@
 ![Vite](https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-4.x-000000?logo=express&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-4169E1?logo=postgresql&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-33%20passing-2E7D32)
+![Tests](https://img.shields.io/badge/tests-47%20passing-2E7D32)
 ![License](https://img.shields.io/badge/license-MIT-2E7D32)
 
 ---
@@ -171,7 +171,7 @@ in `database/`.
 ```bash
 cd database
 npm install
-npm run migrate             # applies 001 → 005 in order
+npm run migrate             # applies 001 → 006 in order
 npm run seed                # 1 admin, 20 students, ~25 requests, one outage demo
 ```
 
@@ -350,19 +350,27 @@ roles independently, so the UI guard is convenience, not security.
 ## Testing
 
 ```bash
-cd backend && npm test        # 13 suites, 33 tests
-cd database && npm test       # concurrency check against a live database
-cd frontend && npm run build  # type/import verification
+cd backend && npm test         # 14 suites, 47 tests, no database needed
+cd backend && npm run smoke    # write paths against the live database
+cd database && npm test        # concurrency check against a live database
+cd frontend && npm run build   # type/import verification
 ```
 
-The suite concentrates on the parts that are expensive to get wrong rather than
-chasing coverage:
+The unit suite runs entirely against in-memory fixtures, so it never touches a
+database and can run in CI without secrets:
 
 - **Scheduler (10 suites)** — overlap, buffer spilling past closing time, grid
   alignment, fill-gaps, no-split across closing, deadline risk, determinism
   (same input twice → same output), one-move repair, stable re-plan, waiting
   priority
 - **API (3 suites)** — route behaviour, validation, authorization
+- **Services (1 suite)** — request validation and quota rules
+
+`npm run smoke` is the other half: it boots the app against the real schema,
+signs in with a genuine Supabase session, submits a request, cancels it, asks for
+an admin preview, and then deletes every row it created. `-- --with-apply` also
+applies an admin change, which leaves one audit entry behind because `audit_log`
+is append-only.
 
 The frontend has no unit tests; it is verified by building and by manual flows.
 
