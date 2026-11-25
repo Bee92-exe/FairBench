@@ -151,12 +151,13 @@ export async function loadSchedulingState(client, { machineId = null, settings }
        and ($1::uuid is null or r.machine_id = $1)
      order by r.created_at`;
 
-  const [bookings, outages, usage, open] = await Promise.all([
-    client.query(bookingsSql, [machineId]),
-    client.query(outagesSql, [machineId]),
-    client.query(usageSql, [settings.fairnessWindowDays ?? 14]),
-    client.query(openSql, [machineId])
-  ]);
+  // Sequential on purpose: a pg client runs one query at a time, and issuing
+  // these concurrently on the same client is deprecated (it becomes an error in
+  // pg 9). Inside a transaction there is no second connection to use.
+  const bookings = await client.query(bookingsSql, [machineId]);
+  const outages = await client.query(outagesSql, [machineId]);
+  const usage = await client.query(usageSql, [settings.fairnessWindowDays ?? 14]);
+  const open = await client.query(openSql, [machineId]);
 
   const kept = bookings.rows.map((row) => ({
     booking: {
