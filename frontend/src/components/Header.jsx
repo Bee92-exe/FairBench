@@ -10,12 +10,13 @@ import {
   FlaskConical,
   LogOut,
   Menu,
-  X
+  X,
+  ShieldAlert
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export function Header() {
-  const { user, role, logout } = useAuth();
+  const { user, role, logout, isAdmin } = useAuth();
   const { unreadCount } = useNotifications();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
